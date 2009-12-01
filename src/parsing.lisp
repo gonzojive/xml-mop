@@ -10,8 +10,10 @@ corresponds to the tag string."))
 
 (defgeneric on-loaded-from-xml (element)
   (:documentation "Called when the element has finished loading in the xml stream."))
+
 (defgeneric on-start-xml-load (element)
   (:documentation "Called when the element has started to load in the xml stream.  After attribs have been assigned."))
+
 (defmethod on-start-xml-load ((element element))
   (declare (ignore element)))
 
@@ -145,6 +147,21 @@ descriptor, and then check the allowed-subelements field of the class."))
 				   (find-if #'descriptor-multiple
 					    (element-slot-attributes matching-slot-definition)))))
     (if matching-slot-definition
+	(symbol-macrolet ((slot-place (slot-value-using-class (class-of element)
+							      element
+							      matching-slot-definition)))
+	  (if (not slot-is-collection?)
+	      (setf slot-place attr-value)
+	      (setf slot-place (append (list attr-value)  slot-place))))
+	(restart-case (error (make-condition 'encountered-unmatched-attribute))
+	  (continue ())))))
+#+old
+(defmethod assign-attribute ((element element) name attr-value)
+  (let* ((matching-slot-definition (find-slot-matching-attribute element name))
+	 (slot-is-collection? (and matching-slot-definition
+				   (find-if #'descriptor-multiple
+					    (element-slot-attributes matching-slot-definition)))))
+    (if matching-slot-definition
 	(setf (slot-value-using-class (class-of element)
 				      element
 				      matching-slot-definition)
@@ -196,15 +213,13 @@ of the element."
   (let ((subelement-descriptors (element-slot-subelements parent-slot))
 	(new-child-value (child-element-value
 			  new-child-element parent-element parent-slot)))
-    (if (find-if #'descriptor-multiple subelement-descriptors)
-	(let ((current-slot-value (slot-value-using-class
-				   (class-of parent-element) parent-element  parent-slot)))
-	  (setf (slot-value-using-class
-		 (class-of parent-element) parent-element  parent-slot)
-		(append (list new-child-value) current-slot-value)))
-	(setf (slot-value-using-class
-	       (class-of parent-element) parent-element  parent-slot)
-	      new-child-value))))
+    (symbol-macrolet ((slot-place  (slot-value-using-class (class-of parent-element)
+							   parent-element
+							   parent-slot)))
+      (if (find-if #'descriptor-multiple subelement-descriptors)
+	  (let ((current-slot-value slot-place))
+	    (setf slot-place (append current-slot-value (list new-child-value))))
+	  (setf slot-place  new-child-value)))))
 
 ;; the seed used is a list of the form
 ;; (allowed-root-element-classes root-elements element-stack-element*)
@@ -217,8 +232,10 @@ of churning out objects."
 	(destructure-seed seed)
       (let ((parent-element (first element-stack)))
 	(multiple-value-bind (new-element-class parent-slot)
-	    (if parent-element ; if there are any elements on the stack
+	    (if parent-element
+		;; if there are any elements on the stack try to match this to a subelement allowed by the parent
 		(find-subelement-matching-tag (class-of parent-element) name-string)
+		;; otherwise 
 		(some #'(lambda (allowed-element-class)
 ;			  (print name-string)
 ;			  (format t "allowed element class for rat ~A: ~A / ~A~%"
@@ -318,7 +335,8 @@ of churning out objects."
 		  :seed (list doc-class))))
 
 (defun parse-xml-stream (stream acceptable-root-classes)
-  "This is where we interact with s-xml."
+  "This is where we interact with s-xml.  Returns a list of the parsed root elements.  Usually
+there is only one unless you are doing something weird."
   (multiple-value-bind (element-stack allowed-root-classes root-elements)
       (let* ((resolved-acceptable-root-classes
 	      (mapcar #'(lambda (class-specifier)

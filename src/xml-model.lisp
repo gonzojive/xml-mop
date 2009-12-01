@@ -62,7 +62,11 @@ of node-string identifiers."))
 
 (defclass element-direct-slot-definition (standard-direct-slot-definition)
   ((subelement :accessor element-slot-subelement :initarg :subelement :initform nil)
-   (attribute :accessor element-slot-attribute :initarg :attribute :initform nil)))
+   (attribute :accessor element-slot-attribute :initarg :attribute :initform nil))
+  (:documentation "Direct slots of ELEMENT-CLASS (that is those that are defined in
+a defclass form where element-class is the metaclass) have an ATTRIBUTE and SUBELEMENT
+property.  These direct slot definitions are transformed into effective slot definitions
+in compute-effective-slot-definition."))
 ;(defmethod element-slot-subelements ((slot-definition element-direct-slot-definition)))
 ;(defmethod element-slot-attributes ((slot-definition element-direct-slot-definition)))
 
@@ -131,8 +135,7 @@ descriptor definition."
 (defmethod compute-effective-slot-definition ((class element-class) slot-name direct-slot-definitions)
   (declare (ignore slot-name))
   (labels ((ensure-list (possible-list)
-	     (if (and (not (null possible-list))
-		      (listp possible-list))
+	     (if (and (not (null possible-list)) (listp possible-list))
 		 possible-list
 		 (list possible-list))))
     (let ((effective-slotd (call-next-method)) ;let CLOS do the lifting
