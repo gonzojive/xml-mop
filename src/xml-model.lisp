@@ -41,7 +41,7 @@ single element."))
 	    :documentation "alternative node descriptors for this subelement."))
   (:documentation "Describes a subelement associated with a slot on an element class."))
 
-(defclass xml-treenode-class (standard-class)
+(defclass xml-treenode-class (c2mop:standard-class)
   ((allowed-elements :initarg :allowed-elements :initform nil :accessor node-class-allowed-elements)
    (parser :reader element-class-parser :initarg :parser :initform (make-instance 'standard-parser))))
 
@@ -57,10 +57,10 @@ single element."))
 can be passed to element classes is the :tags option, which accepts a sequence
 of node-string identifiers."))
 	 
-(defgeneric element-slot-subelements (slot-definition))
-(defgeneric element-slot-attributes (slot-definition))
+(defgeneric element-slot-subelements (c2mop:slot-definition))
+(defgeneric element-slot-attributes (c2mop:slot-definition))
 
-(defclass element-direct-slot-definition (standard-direct-slot-definition)
+(defclass element-direct-slot-definition (c2mop:standard-direct-slot-definition)
   ((subelement :accessor element-slot-subelement :initarg :subelement :initform nil)
    (attribute :accessor element-slot-attribute :initarg :attribute :initform nil))
   (:documentation "Direct slots of ELEMENT-CLASS (that is those that are defined in
@@ -70,14 +70,14 @@ in compute-effective-slot-definition."))
 ;(defmethod element-slot-subelements ((slot-definition element-direct-slot-definition)))
 ;(defmethod element-slot-attributes ((slot-definition element-direct-slot-definition)))
 
-(defclass element-effective-slot-definition (standard-effective-slot-definition)
+(defclass element-effective-slot-definition (c2mop:standard-effective-slot-definition)
   ((subelements :accessor element-slot-subelements :initarg :subelements :initform nil) ;:type named-node-descriptor)
    (attributes :accessor element-slot-attributes :initarg :attributes :initform nil))) ;:type named-node-descriptor)))
 
-(defmethod direct-slot-definition-class ((class element-class) &key &allow-other-keys)
+(defmethod c2mop:direct-slot-definition-class ((class element-class) &key &allow-other-keys)
   (find-class 'element-direct-slot-definition))
 
-(defmethod effective-slot-definition-class ((class element-class) &key &allow-other-keys)
+(defmethod c2mop:effective-slot-definition-class ((class element-class) &key &allow-other-keys)
   (find-class 'element-effective-slot-definition))
 
 (defun resolve-subelement-descriptor-definition (descriptor-definition)
@@ -132,7 +132,7 @@ descriptor definition."
 		       (rest descriptor-definition)))))))))
 	
 ;; Initialize the effective slot.
-(defmethod compute-effective-slot-definition ((class element-class) slot-name direct-slot-definitions)
+(defmethod c2mop:compute-effective-slot-definition ((class element-class) slot-name direct-slot-definitions)
   (declare (ignore slot-name))
   (labels ((ensure-list (possible-list)
 	     (if (and (not (null possible-list)) (listp possible-list))
@@ -164,7 +164,7 @@ descriptor definition."
 
 ;; Instances of MY-METACLASS can have superclasses which are instances
 ;; of any other metaclass.
-(defmethod validate-superclass ((class element-class) super)
+(defmethod c2mop:validate-superclass ((class element-class) super)
   t)
 
 (defclass element ()
@@ -176,7 +176,7 @@ descriptor definition."
 ;; a default superclass of element
 (defmethod initialize-instance :around
   ((class element-class) &rest initargs  &key direct-superclasses tags)
-  (declare (dynamic-extent initargs))
+;  (declare (dynamic-extent initargs))
 
   (if (loop for class in direct-superclasses
             thereis (subtypep class (find-class 'element)))
@@ -198,7 +198,7 @@ descriptor definition."
 (defmethod reinitialize-instance :around
   ((class element-class) &rest initargs
    &key (direct-superclasses '() direct-superclasses-p) tags)
-  (declare (dynamic-extent initargs))
+;  (declare (dynamic-extent initargs))
 
 ;  (format t "Reinitializing ~A~% w/direct superclasses? ~A: ~A ~%" (class-name class) direct-superclasses-p direct-superclasses)
 
@@ -245,9 +245,9 @@ descriptor definition."
 ; in the initargs and index the attribute/subelement parser with relevant
 ; information passed in on the slots
 (defmethod initialize-instance :after ((class element-class) &key)
-  (finalize-inheritance class)
+  (c2mop:finalize-inheritance class)
   nil)
 
 (defmethod reinitialize-instance :after ((class element-class) &key)
-  (finalize-inheritance class)
+  (c2mop:finalize-inheritance class)
   nil)

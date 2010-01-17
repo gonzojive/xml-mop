@@ -52,7 +52,7 @@ a tag or attribute."))
 				element-class))
 		       (element-class-tag-descriptors element-class))
 		 (some #'find-matching-subclass
-		       (class-direct-subclasses element-class)))))
+		       (c2mop:class-direct-subclasses element-class)))))
     (find-matching-subclass allowed-element-class)))
 
 (defgeneric find-subelement-matching-tag (parent-element tag-name)
@@ -82,7 +82,7 @@ descriptor, and then check the allowed-subelements field of the class."))
 			  (when matching-class
 			    (list slot-definition matching-class))))
 		    (element-slot-subelements slot-definition)))
-	  (class-slots parent-element-class))))
+	  (c2mop:class-slots parent-element-class))))
     (if match
 	(values-list match))))
 
@@ -106,7 +106,7 @@ descriptor, and then check the allowed-subelements field of the class."))
 			   (find-slot-matching-subelement test-element-class tag-name))))
 		     (when (first matching-slot-and-element-class)
 		       matching-slot-and-element-class)))
-	       (class-precedence-list parent-element-class))))
+	       (c2mop:class-precedence-list parent-element-class))))
     (when match
       (values-list (reverse match)))))
   
@@ -118,7 +118,7 @@ descriptor, and then check the allowed-subelements field of the class."))
 		   allowed-element-class tag-name))
 
 	      (node-class-allowed-elements test-element-class)))
-   (class-precedence-list parent-element-class)))
+   (c2mop:class-precedence-list parent-element-class)))
    
 
 
@@ -136,7 +136,7 @@ descriptor, and then check the allowed-subelements field of the class."))
 	      (descriptor-matches? slot-attribute-descriptor
 				   attr-name))
 	  (element-slot-attributes slot-definition)))
-     (class-slots element-metaclass))))
+     (c2mop:class-slots element-metaclass))))
 
 (define-condition encountered-unmatched-attribute ()
   ())
@@ -147,7 +147,7 @@ descriptor, and then check the allowed-subelements field of the class."))
 				   (find-if #'descriptor-multiple
 					    (element-slot-attributes matching-slot-definition)))))
     (if matching-slot-definition
-	(symbol-macrolet ((slot-place (slot-value-using-class (class-of element)
+	(symbol-macrolet ((slot-place (c2mop:slot-value-using-class (class-of element)
 							      element
 							      matching-slot-definition)))
 	  (if (not slot-is-collection?)
@@ -213,7 +213,7 @@ of the element."
   (let ((subelement-descriptors (element-slot-subelements parent-slot))
 	(new-child-value (child-element-value
 			  new-child-element parent-element parent-slot)))
-    (symbol-macrolet ((slot-place  (slot-value-using-class (class-of parent-element)
+    (symbol-macrolet ((slot-place  (c2mop:slot-value-using-class (class-of parent-element)
 							   parent-element
 							   parent-slot)))
       (if (find-if #'descriptor-multiple subelement-descriptors)
