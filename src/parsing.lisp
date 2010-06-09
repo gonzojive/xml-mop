@@ -46,7 +46,6 @@ a tag or attribute."))
 
 (defun determine-element-class-matching-tag (allowed-element-class tag-name)
   (labels ((find-matching-subclass (element-class)
-;	     (format t "Searching class ~A for a matching tag descriptor~%" element-class) 
 	     (or (some #'(lambda (descriptor)
 			   (and (descriptor-matches? descriptor tag-name)
 				element-class))
@@ -177,14 +176,24 @@ descriptor, and then check the allowed-subelements field of the class."))
 
 (defgeneric assign-attributes (element attributes) )
 (defmethod assign-attributes ((element element) attributes)
-;  (format t "Should be assigning some attributes right now...~%")
   (mapcar #'(lambda (attrib-entry)
 	      (assign-attribute element 
 				(string (car attrib-entry))
 				(cdr attrib-entry)))
 	  attributes))
 
-(define-condition encountered-unknown-element () ())
+(define-condition encountered-unknown-element (error)
+  ((element-name :initarg :element-name :initform nil :accessor condition-element-name)
+   (parent-element :initarg :parent-element :initform nil :accessor condition-parent-element))
+  (:documentation "Raised when an element is encountered with no
+  matching xml-mop class.")
+  (:report (lambda (condition stream)
+             (format stream
+                     "Encountered unknown element ~A with parent element ~A." 
+                     (condition-element-name condition)
+                     (condition-parent-element condition)))))
+
+
 
 (defgeneric child-element-value (child-element parent-element parent-slot)
   (:documentation "Returns the value that child-element takes when assigned to
@@ -210,7 +219,6 @@ of the child element"
   "Assigns a child element to the given slot of the parent element.  This function
 takes into account the user's preferences for child element plurality and type conversion
 of the element."
-  (declare (optimize (debug 3)))
   (let ((subelement-descriptors (element-slot-subelements parent-slot))
 	(new-child-value (child-element-value
 			  new-child-element parent-element parent-slot)))
@@ -227,10 +235,7 @@ of the element."
 (defun active-handle-new-element (name attributes seed)
   "Called when an element is encountered and we are in the process
 of churning out objects."
-  (declare (optimize (debug 3)))
   (let ((name-string (string name)))
-;    (format t "NEW ELEMENT: ~A ~%" name-string)
-    (format t "NEW ELEMENT: ~A. Seed: ~S ~%" name-string (first (destructure-seed seed)))
     (multiple-value-bind  (element-stack allowed-root-element-classes root-elements parent-slot-stack)
 	(destructure-seed seed)
       (let ((parent-element (first element-stack)))
@@ -253,10 +258,7 @@ of churning out objects."
                                                              (cons nil parent-slot-stack))))
                 (if (not (eql :ignore-all-elements parent-element))
                     (restart-case
-                        ;;(make-condition 'encountered-unknown-element))
-                        (progn
-                          (format t "---------------------------------------------------------------------------")
-                          (error "encountered unknown element ~A with parent element ~A" name-string parent-element))
+                        (error 'encountered-unknown-element :element-name name-string :parent-element parent-element)
                       (continue () ignore-all-elements-seed))
                     ignore-all-elements-seed))
 	      (let ((new-element (make-instance new-element-class :tag name-string)))
@@ -272,7 +274,7 @@ of churning out objects."
 				   root-elements)
 			       (if (not (null parent-slot))
 				   (cons parent-slot parent-slot-stack)
-				   parent-slot-stack)))))))))
+				   parent-slot-stack))))))))))
   
   
 (defun destructure-seed (seed)
@@ -314,9 +316,6 @@ the element classes allowed as root elements
   "Called when the end of an element is encountered and we are in the process
 of churning out objects."
   (declare (ignorable attributes) (ignorable name) (ignorable parent-seed))
-  (declare (optimize (debug 3)))
-;  (format t "FINISH ELEMENT. ~A  Parent seed: ~A~%       Seed: ~A~%" name parent-seed seed)
-  (format t "FINISH ELEMENT ~A.  Element to pop: ~S~%" name (first (destructure-seed seed)))
   (multiple-value-bind  (element-stack allowed-classes root-elements parent-slot-stack)
       (destructure-seed seed)
     (let ((our-element (first element-stack))
@@ -336,12 +335,6 @@ of churning out objects."
 
 (defun active-handle-text (string seed)
   "Called when text is encountered and we are in the process of churning out objects."
-  (declare (optimize (debug 3)))
-  ;(format t "TEXT: ~S, Seed: ~S~%" string seed)
-  (format t "TEXT: ~S.  Element: ~S~%" 
-          string
-          (first (destructure-seed seed)))
-;  (format t "TEXT: ~A~%" seed)
   (multiple-value-bind  (element-stack)
       (destructure-seed seed)
     (let ((active-element (first element-stack)))
