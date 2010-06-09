@@ -210,6 +210,7 @@ of the child element"
   "Assigns a child element to the given slot of the parent element.  This function
 takes into account the user's preferences for child element plurality and type conversion
 of the element."
+  (declare (optimize (debug 3)))
   (let ((subelement-descriptors (element-slot-subelements parent-slot))
 	(new-child-value (child-element-value
 			  new-child-element parent-element parent-slot)))
@@ -226,46 +227,62 @@ of the element."
 (defun active-handle-new-element (name attributes seed)
   "Called when an element is encountered and we are in the process
 of churning out objects."
-;  (format t "active handle new element ~A ~%" name)
+  (declare (optimize (debug 3)))
   (let ((name-string (string name)))
+;    (format t "NEW ELEMENT: ~A ~%" name-string)
+    (format t "NEW ELEMENT: ~A. Seed: ~S ~%" name-string (first (destructure-seed seed)))
     (multiple-value-bind  (element-stack allowed-root-element-classes root-elements parent-slot-stack)
 	(destructure-seed seed)
       (let ((parent-element (first element-stack)))
 	(multiple-value-bind (new-element-class parent-slot)
-	    (if parent-element
-		;; if there are any elements on the stack try to match this to a subelement allowed by the parent
-		(find-subelement-matching-tag (class-of parent-element) name-string)
-		;; otherwise 
-		(some #'(lambda (allowed-element-class)
-;			  (print name-string)
-;			  (format t "allowed element class for rat ~A: ~A / ~A~%"
-;				  name-string
-;				  allowed-element-class
-;				  (determine-element-class-matching-tag allowed-element-class name-string))
+            (cond
+              ((eql :ignore-all-elements parent-element)
+               (values nil nil))
+              (parent-element
+               ;; if there are any elements on the stack try to match this to a subelement allowed by the parent
+               (find-subelement-matching-tag (class-of parent-element) name-string))
+              (t
+               ;; otherwise 
+               (some #'(lambda (allowed-element-class)
 			  (determine-element-class-matching-tag allowed-element-class name-string))
-		      allowed-root-element-classes))
+		      allowed-root-element-classes)))
 	  (if (null new-element-class)
-	      (restart-case (error "encountered unknown element ~A with parent element ~A" name-string parent-element) ;(make-condition 'encountered-unknown-element))
-		(continue () seed))
+              (let ((ignore-all-elements-seed (generate-seed (cons :ignore-all-elements element-stack)
+                                                             allowed-root-element-classes
+                                                             root-elements
+                                                             (cons nil parent-slot-stack))))
+                (if (not (eql :ignore-all-elements parent-element))
+                    (restart-case
+                        ;;(make-condition 'encountered-unknown-element))
+                        (progn
+                          (format t "---------------------------------------------------------------------------")
+                          (error "encountered unknown element ~A with parent element ~A" name-string parent-element))
+                      (continue () ignore-all-elements-seed))
+                    ignore-all-elements-seed))
 	      (let ((new-element (make-instance new-element-class :tag name-string)))
-					; assign attributes and the relevant place in the parent element
+                ;; assign attributes and the relevant place in the parent element
 		(assign-attributes new-element attributes)
 		(on-start-xml-load new-element)
-;	      (when (not (null parent-slot))
-;		(assign-child-element parent-element new-element parent-slot))
-	      ; append the new element to the element stack along with
-	      ; the slot it will be assigned to when it consumed
-		(generate-seed (append (list new-element) element-stack)
+                ;; append the new element to the element stack along with
+                ;; the slot it will be assigned to when it consumed
+		(generate-seed (cons new-element element-stack)
 			       allowed-root-element-classes
 			       (if (null element-stack)
 				   (append root-elements (list new-element))
 				   root-elements)
 			       (if (not (null parent-slot))
-				   (append (list parent-slot) parent-slot-stack)
+				   (cons parent-slot parent-slot-stack)
 				   parent-slot-stack)))))))))
   
   
 (defun destructure-seed (seed)
+  "Returns multiple values:
+
+1. element stack
+2. allowed-root-element-classes
+3. root elements
+4. slot
+"
 ;  (format t "Destructuring seed ~A~% w/ root elements ~A~%" seed (second seed))
   (values
    (rest (rest (rest seed))) ;element-stack
@@ -296,33 +313,45 @@ the element classes allowed as root elements
 (defun active-handle-finish-element (name attributes parent-seed seed)
   "Called when the end of an element is encountered and we are in the process
 of churning out objects."
-  (declare (ignore attributes) (ignore name) (ignore parent-seed))
-;  (format t "Parent seed: ~A~%Seed: ~A~%" parent-seed seed)
+  (declare (ignorable attributes) (ignorable name) (ignorable parent-seed))
+  (declare (optimize (debug 3)))
+;  (format t "FINISH ELEMENT. ~A  Parent seed: ~A~%       Seed: ~A~%" name parent-seed seed)
+  (format t "FINISH ELEMENT ~A.  Element to pop: ~S~%" name (first (destructure-seed seed)))
   (multiple-value-bind  (element-stack allowed-classes root-elements parent-slot-stack)
       (destructure-seed seed)
     (let ((our-element (first element-stack))
 	  (parent-element (second element-stack))
 	  (parent-slot-for-element (first parent-slot-stack)))
-    (finalize-after-parse our-element)
-    (when (and parent-element parent-slot-for-element)
-      (assign-child-element parent-element our-element parent-slot-for-element))
-    (on-loaded-from-xml our-element)
-    (generate-seed
-     (rest element-stack)
-     allowed-classes
-     root-elements
-     (rest parent-slot-stack)))))
+      (when (not (eql our-element :ignore-all-elements))
+        (finalize-after-parse our-element)
+        (when (and parent-element parent-slot-for-element)
+          (assign-child-element parent-element our-element parent-slot-for-element))
+        (on-loaded-from-xml our-element))
+
+      (generate-seed
+       (rest element-stack)
+       allowed-classes
+       root-elements
+       (rest parent-slot-stack)))))
 
 (defun active-handle-text (string seed)
   "Called when text is encountered and we are in the process of churning out objects."
-;  (format t "Seed: ~A~%" seed)
+  (declare (optimize (debug 3)))
+  ;(format t "TEXT: ~S, Seed: ~S~%" string seed)
+  (format t "TEXT: ~S.  Element: ~S~%" 
+          string
+          (first (destructure-seed seed)))
+;  (format t "TEXT: ~A~%" seed)
   (multiple-value-bind  (element-stack)
       (destructure-seed seed)
-    (if (first element-stack)
-	(setf (element-text (first element-stack))
-	      (concatenate 'string (element-text (first element-stack)) string))
-	(error "Somehow got text when there is no element stack.")))
-  seed)
+    (let ((active-element (first element-stack)))
+      (cond
+        ((eql :ignore-all-elements active-element) nil)
+        (active-element
+         (setf (element-text active-element)
+               (concatenate 'string (element-text active-element) string)))
+	(t (error "Somehow got text when there is no element stack."))))
+    seed))
 
 (defun active-parse-stream (stream doc-class)
   "This is where we interact with s-xml."
