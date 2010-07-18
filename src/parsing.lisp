@@ -274,7 +274,7 @@ of churning out objects."
 				   root-elements)
 			       (if (not (null parent-slot))
 				   (cons parent-slot parent-slot-stack)
-				   parent-slot-stack))))))))))
+				   parent-slot-stack)))))))))
   
   
 (defun destructure-seed (seed)
@@ -341,8 +341,12 @@ of churning out objects."
       (cond
         ((eql :ignore-all-elements active-element) nil)
         (active-element
-         (setf (element-text active-element)
-               (concatenate 'string (element-text active-element) string)))
+         (let ((result-string (concatenate 'string (element-text active-element) string)))
+           #+nil
+           (format t "HANDLE TEXT FOR ~A.  Assigning ~S~%"
+                   (element-tag-string active-element)
+                   result-string)
+           (setf (element-text active-element) result-string)))
 	(t (error "Somehow got text when there is no element stack."))))
     seed))
 
